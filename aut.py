@@ -1,6 +1,7 @@
 import requests
 import base64
 import json
+# gitignore
 
 # Configurações da API
 API_KEY = f""
