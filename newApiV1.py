@@ -2,6 +2,7 @@ import requests
 import json
 import base64
 import os
+import openpyxl
 import xml.etree.ElementTree as ET
 import pandas as pd
 from datetime import datetime, timedelta
@@ -10,8 +11,8 @@ from db_manager import DatabaseManager
 
 # Configurações da API
 API_KEY = ""
-URL = f"https://api.sieg.com/BaixarXmlsV2?api_key=7dJmT%2f0uVPbX8mEdBrZSdw%3d%3d"
-XML_BASE_DIR = rf"W:\Escritório Digital\Robos\nfe"  # Pasta raiz onde os XMLs serão armazenados
+URL = f"https://api.sieg.com/BaixarXmlsV2?api_key="
+XML_BASE_DIR = rf"\\192.168.1.240\Escritório Digital\Robos\nfe"  # Pasta raiz onde os XMLs serão armazenados
 
 # Dicionário de meses para organização das pastas
 MESES = {
@@ -97,11 +98,15 @@ def extrair_dados_xml(xml_content):
         nNF = root.find(".//ns:nNF", ns)
         numero_nota = nNF.text if nNF is not None else None
 
+        tpNF = root.find(".//ns:tpNF", ns)
+        tipo_nota = "entrada" if tpNF is not None and tpNF.text == "0" else "saida"
+
         return {
             "ano": ano,
             "mes": mes,
             "cnpj_emit": cnpj_emit,
-            "numero_nota": numero_nota
+            "numero_nota": numero_nota,
+            "tipo_nota": tipo_nota
         }
     except Exception as e:
         print(f"❌ Erro ao extrair dados do XML: {e}")
@@ -111,7 +116,7 @@ def salvar_xml(xml_content, dados_xml, i):
     """Salva o XML em disco na estrutura de pastas adequada."""
     try:
         mes_nome = MESES.get(dados_xml["mes"], dados_xml["mes"])
-        dir_path = os.path.join(XML_BASE_DIR, dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
+        dir_path = os.path.join(XML_BASE_DIR, dados_xml["tipo_nota"], dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
         os.makedirs(dir_path, exist_ok=True)
 
         numero_nota = dados_xml["numero_nota"] or f"{i}"
