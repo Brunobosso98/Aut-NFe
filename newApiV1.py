@@ -1,4 +1,5 @@
 # Adicionado banco de dados no lugar do arquivo TXT
+# Adicionado loop para modificar a requisicao caso tenha mais de 50 xmls
 
 import requests
 import json
