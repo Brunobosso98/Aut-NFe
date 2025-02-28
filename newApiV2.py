@@ -2,16 +2,17 @@ import requests
 import json
 import base64
 import os
+import openpyxl
 import xml.etree.ElementTree as ET
 import pandas as pd
 from datetime import datetime, timedelta
 import time
+from db_manager import DatabaseManager
 
 # Configurações da API
-API_KEY = f""
+API_KEY = ""
 URL = f"https://api.sieg.com/BaixarXmlsV2?api_key="
-LOG_FILE = "xml_baixados.txt"  # Arquivo para registrar os XMLs já baixados
-XML_BASE_DIR = "xml_arquivos"  # Pasta raiz onde os XMLs serão armazenados
+XML_BASE_DIR = rf"W:\Escritório Digital\Robos\nfe"  # Pasta raiz onde os XMLs serão armazenados
 
 # Dicionário de meses para organização das pastas
 MESES = {
@@ -20,27 +21,63 @@ MESES = {
     "09": "Setembro", "10": "Outubro", "11": "Novembro", "12": "Dezembro"
 }
 
-def carregar_xmls_baixados():
-    """Carrega a lista de XMLs já baixados do arquivo de log."""
-    baixados = set()
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r", encoding="utf-8") as log:
-            baixados = set(log.read().splitlines())
-    return baixados
+# Inicializa o gerenciador do banco de dados
+db = DatabaseManager()
 
-def fazer_requisicao_api(cnpj, data_str):
-    """Faz uma requisição à API do SIEG para obter os XMLs."""
+def fazer_requisicao_api(cnpj, data_str, skip=0, max_retries=3, retry_delay=5):
+    """Faz uma requisição à API do SIEG para obter os XMLs com mecanismo de retry."""
     headers = {"Content-Type": "application/json"}
     payload = {
         "XmlType": 1,  # 1 = NFe
         "Take": 50,  # Máximo 50 XMLs por requisição
-        "Skip": 0,
+        "Skip": skip,
         "DataEmissaoInicio": data_str,
         "DataEmissaoFim": data_str,
         "CnpjEmit": cnpj,
         "Downloadevent": False
     }
-    return requests.post(URL, headers=headers, json=payload)
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(URL, headers=headers, json=payload)
+            
+            # Se a resposta for 404 com a mensagem específica de "Nenhum arquivo XML localizado",
+            # retornamos imediatamente pois isso não é um erro da API
+            if response.status_code == 404:
+                try:
+                    error_message = response.json()
+                    if isinstance(error_message, list) and len(error_message) > 0 and "Nenhum arquivo XML localizado" in error_message[0]:
+                        return response
+                except:
+                    pass
+            
+            # Se a resposta for bem-sucedida (200) ou for o caso específico de "não encontrado",
+            # retornamos a resposta
+            if response.status_code == 200:
+                return response
+                
+            # Se chegamos aqui, é um erro real da API
+            print(f"⚠️ Tentativa {attempt + 1} de {max_retries} falhou. Código: {response.status_code}")
+            
+            if attempt < max_retries - 1:  # Se não for a última tentativa
+                print(f"🔄 Aguardando {retry_delay} segundos antes de tentar novamente...")
+                time.sleep(retry_delay)
+                continue
+            elif attempt == max_retries - 1:  # Se for a última tentativa
+                print(f"❌ Todas as tentativas falharam para CNPJ {cnpj} na data {data_str}. Continuando com o próximo...")
+                return None  # Retorna None para indicar falha total
+                
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:  # Se não for a última tentativa
+                print(f"⚠️ Erro de conexão na tentativa {attempt + 1} de {max_retries}: {str(e)}")
+                print(f"🔄 Aguardando {retry_delay} segundos antes de tentar novamente...")
+                time.sleep(retry_delay)
+                continue
+            elif attempt == max_retries - 1:  # Se for a última tentativa
+                print(f"❌ Todas as tentativas falharam para CNPJ {cnpj} na data {data_str}. Continuando com o próximo...")
+                return None  # Retorna None para indicar falha total
+    
+    return None  # Garante que sempre retornamos None em caso de falha total
 
 def extrair_dados_xml(xml_content):
     """Extrai informações relevantes do XML da nota fiscal."""
@@ -92,7 +129,6 @@ def salvar_xml(xml_content, dados_xml, i):
 def processar_xml_por_cnpj(cnpj):
     """Processa XMLs de notas fiscais para um CNPJ específico."""
     hoje = datetime.today().date()
-    baixados = carregar_xmls_baixados()
     
     # Loop para os últimos 5 dias
     for dias_atras in range(5, 0, -1):
@@ -101,21 +137,30 @@ def processar_xml_por_cnpj(cnpj):
         
         print(f"📅 Buscando notas para CNPJ {cnpj} na data {data_str}")
         
-        # Faz requisição à API
-        response = fazer_requisicao_api(cnpj, data_str)
+        # Inicializa variáveis para paginação
+        skip = 0
+        tem_mais_xmls = True
         
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                print(f"🔹 Processando resposta para CNPJ {cnpj} do dia {data_str}")
+        while tem_mais_xmls:
+            # Faz requisição à API
+            response = fazer_requisicao_api(cnpj, data_str, skip)
+            
+            # Se a resposta for None, significa que todas as tentativas falharam
+            if response is None:
+                tem_mais_xmls = False
+                continue
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    print(f"🔹 Processando resposta para CNPJ {cnpj} do dia {data_str} (Skip: {skip})")
 
-                if "xmls" in data and isinstance(data["xmls"], list) and len(data["xmls"]) > 0:
-                    novos_arquivos = 0
-                    with open(LOG_FILE, "a", encoding="utf-8") as log:
+                    if "xmls" in data and isinstance(data["xmls"], list) and len(data["xmls"]) > 0:
+                        novos_arquivos = 0
                         for i, xml_base64 in enumerate(data["xmls"], 1):
                             # Verifica se o XML já foi baixado
                             xml_hash = hash(xml_base64)
-                            if str(xml_hash) in baixados:
+                            if db.verificar_xml_existente(xml_hash):
                                 print(f"⚠️ XML {i} já foi baixado anteriormente. Pulando...")
                                 continue
 
@@ -126,22 +171,32 @@ def processar_xml_por_cnpj(cnpj):
                             if dados_xml:
                                 file_name = salvar_xml(xml_content, dados_xml, i)
                                 if file_name:
-                                    log.write(f"{xml_hash}\n")
-                                    novos_arquivos += 1
-                                    print(f"✅ XML {i} salvo em: {file_name}")
+                                    if db.registrar_xml(xml_hash, cnpj):
+                                        novos_arquivos += 1
+                                        print(f"✅ XML {i} salvo em: {file_name}")
 
-                    if novos_arquivos == 0:
-                        print(f"⚠️ Nenhum novo XML encontrado para CNPJ {cnpj} no dia {data_str}.")
-                else:
-                    print(f"⚠️ Nenhum XML retornado pela API para CNPJ {cnpj} no dia {data_str}.")
+                        # Verifica se há mais XMLs para buscar
+                        if len(data["xmls"]) == 50:  # Se retornou o máximo de XMLs, provavelmente há mais
+                            skip += 50  # Incrementa o skip para a próxima página
+                            time.sleep(2)  # Aguarda entre requisições para respeitar limite da API
+                        else:
+                            tem_mais_xmls = False  # Se retornou menos que 50, não há mais XMLs
 
-            except json.JSONDecodeError:
-                print("❌ Erro ao decodificar a resposta JSON.")
-        else:
-            print(f"❌ Erro na requisição: {response.status_code} - {response.text}")
-        
-        # Aguarda entre requisições para respeitar limite da API
-        time.sleep(2)
+                        if novos_arquivos == 0:
+                            print(f"⚠️ Nenhum novo XML encontrado para CNPJ {cnpj} no dia {data_str}.")
+                    else:
+                        print(f"⚠️ Nenhum XML retornado pela API para CNPJ {cnpj} no dia {data_str}.")
+                        tem_mais_xmls = False
+
+                except json.JSONDecodeError:
+                    print("❌ Erro ao decodificar a resposta JSON.")
+                    tem_mais_xmls = False
+            else:
+                print(f"❌ Erro na requisição: {response.status_code} - {response.text}")
+                tem_mais_xmls = False
+            
+            # Aguarda entre requisições para respeitar limite da API
+            time.sleep(2)
 
 def processar_lista_cnpjs():
     """Processa a lista de CNPJs do arquivo Excel."""
