@@ -1,1 +1,1 @@
-Automação para baixar notas de entrada e saída do sistema SIEG
+Automação para baixar notas de entrada e saída do sistema SIEG.
