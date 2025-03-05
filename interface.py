@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton,
                              QTextEdit, QDateEdit, QMessageBox, QScrollArea)
 from PyQt5.QtCore import Qt, QDate
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import json
 import base64
@@ -15,8 +15,8 @@ from db_manager import DatabaseManager
 
 # Configurações da API
 API_KEY = ""
-URL = f"https://api.sieg.com/BaixarXmlsV2?api_key="
-XML_BASE_DIR = rf"\\192.168.1.240\Escritório Digital\Robos\nfe"  # Pasta raiz onde os XMLs serão armazenados
+URL = f"https://api.sieg.com/BaixarXmlsV2?api_key=7dJmT%2f0uVPbX8mEdBrZSdw%3d%3d"
+XML_BASE_DIR = rf"\\192.168.1.240\Escritório Digital\Robos\NFE"  # Pasta raiz onde os XMLs serão armazenados
 
 # Dicionário de meses para organização das pastas
 MESES = {
@@ -29,6 +29,7 @@ class XMLProcessorGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = DatabaseManager()
+        self.db.limpar_registros_antigos(90)
         self.initUI()
 
     def initUI(self):
@@ -221,9 +222,9 @@ class XMLProcessorGUI(QMainWindow):
 
                 time.sleep(2)
 
-            current_date = current_date.replace(day=current_date.day + 1)
+            current_date = current_date + timedelta(days=1)
 
-    def fazer_requisicao_api(self, cnpj, data_str, skip=0, max_retries=3, retry_delay=5):
+    def fazer_requisicao_api(self, cnpj, data_str, skip=0, max_retries=5, retry_delay=5):
         headers = {"Content-Type": "application/json"}
         payload = {
             "XmlType": 1,

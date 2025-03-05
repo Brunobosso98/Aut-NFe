@@ -43,3 +43,20 @@ class DatabaseManager:
         except Exception as e:
             print(f"❌ Erro ao registrar XML no banco de dados: {e}")
             return False
+
+    def limpar_registros_antigos(self, dias=90):
+        """Remove registros mais antigos que o número especificado de dias."""
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM xml_hashes 
+                    WHERE data_processamento < datetime('now', '-' || ? || ' days')
+                """, (dias,))
+                registros_removidos = cursor.rowcount
+                conn.commit()
+                print(f"✅ {registros_removidos} registros antigos foram removidos do banco de dados.")
+                return registros_removidos
+        except Exception as e:
+            print(f"❌ Erro ao limpar registros antigos: {e}")
+            return 0
