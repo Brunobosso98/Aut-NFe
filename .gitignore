@@ -3,3 +3,9 @@
 xml_baixados.txt
 
 xml_arquivos/
+
+dist
+
+build
+
+venv

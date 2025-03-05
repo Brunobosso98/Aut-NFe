@@ -165,7 +165,7 @@ def processar_xml_por_cnpj(cnpj):
         for xml_type in [1, 2]:  # 1 = NFe, 2 = CTe
             doc_name = "NFe" if xml_type == 1 else "CTe"
             print(f"📅 Buscando {doc_name}s para CNPJ {cnpj} na data {data_str}")
-            
+
             # Inicializa variáveis para paginação
             skip = 0
             tem_mais_xmls = True
