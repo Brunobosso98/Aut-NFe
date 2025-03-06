@@ -11,3 +11,5 @@ build
 venv
 
 __pycache__
+
+xml_database.db
