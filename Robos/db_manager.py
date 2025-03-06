@@ -14,37 +14,26 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS xml_hashes (
                     hash TEXT PRIMARY KEY,
                     cnpj TEXT,
-                    numero_nota TEXT,
                     data_processamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
 
     def verificar_xml_existente(self, xml_hash):
-        """Verifica se um XML já foi baixado anteriormente pelo hash."""
+        """Verifica se um XML já foi baixado anteriormente."""
         with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT hash FROM xml_hashes WHERE hash = ?", (str(xml_hash),))
             return cursor.fetchone() is not None
-            
-    def verificar_nota_existente(self, cnpj, numero_nota):
-        """Verifica se uma nota com o mesmo CNPJ e número já foi baixada anteriormente."""
-        if not numero_nota:  # Se o número da nota for None ou vazio
-            return False
-            
-        with sqlite3.connect(self.db_name) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT hash FROM xml_hashes WHERE cnpj = ? AND numero_nota = ?", (cnpj, numero_nota))
-            return cursor.fetchone() is not None
 
-    def registrar_xml(self, xml_hash, cnpj, numero_nota=None):
+    def registrar_xml(self, xml_hash, cnpj):
         """Registra um novo XML no banco de dados."""
         try:
             with sqlite3.connect(self.db_name) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO xml_hashes (hash, cnpj, numero_nota) VALUES (?, ?, ?)",
-                    (str(xml_hash), cnpj, numero_nota)
+                    "INSERT INTO xml_hashes (hash, cnpj) VALUES (?, ?)",
+                    (str(xml_hash), cnpj)
                 )
                 conn.commit()
                 return True

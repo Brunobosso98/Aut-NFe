@@ -246,15 +246,9 @@ class XMLProcessorGUI(QMainWindow):
                             dados_xml = self.extrair_dados_xml(xml_content, xml_type)
 
                             if dados_xml:
-                                # Verificar se a nota já existe no banco de dados pelo CNPJ e número da nota
-                                numero_nota = dados_xml["numero_nota"]
-                                if numero_nota and self.db.verificar_nota_existente(cnpj, numero_nota):
-                                    self.log_message(f"⚠️ XML {i} com número {numero_nota} já foi baixado anteriormente para o CNPJ {cnpj}. Pulando...")
-                                    continue
-                                    
                                 file_name = self.salvar_xml(xml_content, dados_xml, i, xml_type)
                                 if file_name:
-                                    if self.db.registrar_xml(xml_hash, cnpj, dados_xml["numero_nota"]):
+                                    if self.db.registrar_xml(xml_hash, cnpj):
                                         novos_arquivos += 1
                                         self.log_message(f"✅ XML {i} salvo em: {file_name}")
 
