@@ -4,7 +4,6 @@ import sys
 import base64
 import os
 import openpyxl
-import openpyxl
 import xml.etree.ElementTree as ET
 import pandas as pd
 from datetime import datetime, timedelta
