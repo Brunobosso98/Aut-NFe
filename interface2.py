@@ -29,7 +29,7 @@ MESES = {
 # Configurações dos tipos de documentos
 DOC_TYPES = {
     1: {"name": "NFE", "number_tag": "nNF", "type_tag": "tpNF"},
-    2: {"name": "CTE", "number_tag": "cCT", "type_tag": "tpCTe"}
+    2: {"name": "CTE", "number_tag": "nCT", "type_tag": "tpCTe"}
 }
 
 # Inicializa o banco de dados
@@ -379,16 +379,39 @@ class XMLProcessorGUI(QMainWindow):
     def salvar_xml(self, xml_content, dados_xml, i, xml_type):
         try:
             mes_nome = MESES.get(dados_xml["mes"], dados_xml["mes"])
-            dir_path = os.path.join(self.xml_base_dir, dados_xml["doc_type"], dados_xml["tipo_nota"], 
-                                  dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
+            
+            # Define o caminho base dependendo do tipo de nota
+            if dados_xml["tipo_nota"] == "entrada":
+                # Para notas de entrada, salva direto na pasta do mês
+                dir_path = os.path.join(self.xml_base_dir, dados_xml["doc_type"], 
+                                      dados_xml["tipo_nota"], dados_xml["ano"], mes_nome)
+            else:
+                # Para notas de saída, mantém a estrutura original com pasta do CNPJ
+                dir_path = os.path.join(self.xml_base_dir, dados_xml["doc_type"], 
+                                      dados_xml["tipo_nota"], dados_xml["ano"], 
+                                      mes_nome, dados_xml["cnpj_emit"])
+            
             os.makedirs(dir_path, exist_ok=True)
-
+            
             numero_nota = dados_xml["numero_nota"] or f"{i}"
-            file_name = os.path.join(dir_path, f"{numero_nota}.xml")
-
+            
+            # Para notas de entrada, verifica se já existe arquivo com mesmo número
+            if dados_xml["tipo_nota"] == "entrada":
+                base_name = f"{numero_nota}.xml"
+                file_name = os.path.join(dir_path, base_name)
+                counter = 1
+                
+                # Enquanto existir um arquivo com o mesmo nome, adiciona um contador
+                while os.path.exists(file_name):
+                    base_name = f"{numero_nota}_{counter}.xml"
+                    file_name = os.path.join(dir_path, base_name)
+                    counter += 1
+            else:
+                file_name = os.path.join(dir_path, f"{numero_nota}.xml")
+        
             with open(file_name, "w", encoding="utf-8") as file:
                 file.write(xml_content)
-
+        
             return file_name
         except Exception as e:
             self.log_message(f"❌ Erro ao salvar XML: {e}")
