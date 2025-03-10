@@ -134,19 +134,16 @@ def extrair_dados_xml(xml_content, xml_type=1):
         return None
 
 def salvar_xml(xml_content, dados_xml, i):
-    """Salva o XML em disco na estrutura de pastas adequada e em um diretório de backup."""
+    """Salva o XML em disco na estrutura de pastas adequada."""
     try:
         doc_config = DOC_TYPES[dados_xml["xml_type"]]
         mes_nome = MESES.get(dados_xml["mes"], dados_xml["mes"])
-        
-        # Prepara o caminho para o diretório principal
         dir_path = os.path.join(doc_config["base_dir"], dados_xml["tipo_nota"], dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
         os.makedirs(dir_path, exist_ok=True)
 
         numero_nota = dados_xml["numero_nota"] or f"{i}"
         file_name = os.path.join(dir_path, f"{numero_nota}.xml")
         
-        # Salva no diretório principal
         with open(file_name, "w", encoding="utf-8") as file:
             file.write(xml_content)
         
@@ -190,26 +187,20 @@ def processar_xml_por_cnpj(cnpj):
                         if "xmls" in data and isinstance(data["xmls"], list) and len(data["xmls"]) > 0:
                             novos_arquivos = 0
                             for i, xml_base64 in enumerate(data["xmls"], 1):
-                                # Decodifica e extrai dados do XML primeiro
+                                # Verifica se o XML já foi baixado
+                                xml_hash = hash(xml_base64)
+                                if db.verificar_xml_existente(xml_hash):
+                                    print(f"⚠️ XML {i} já foi baixado anteriormente. Pulando...")
+                                    continue
+
+                                # Decodifica e processa o XML
                                 xml_content = base64.b64decode(xml_base64).decode("utf-8")
                                 dados_xml = extrair_dados_xml(xml_content, xml_type)
                                 
                                 if dados_xml:
-                                    # Verifica se a nota já foi baixada pelo CNPJ e número
-                                    if db.verificar_nota_existente(cnpj, dados_xml["numero_nota"]):
-                                        print(f"⚠️ Nota {dados_xml['numero_nota']} do CNPJ {cnpj} já foi baixada anteriormente. Pulando...")
-                                        continue
-                                    
-                                    # Verifica se o XML já foi baixado (verificação adicional pelo hash)
-                                    xml_hash = hash(xml_base64)
-                                    if db.verificar_xml_existente(xml_hash):
-                                        print(f"⚠️ XML {i} já foi baixado anteriormente (hash). Pulando...")
-                                        continue
-
-                                    # Salva o XML e registra no banco
                                     file_name = salvar_xml(xml_content, dados_xml, i)
                                     if file_name:
-                                        if db.registrar_xml(xml_hash, cnpj, dados_xml["numero_nota"]):
+                                        if db.registrar_xml(xml_hash, cnpj):
                                             novos_arquivos += 1
                                             print(f"✅ XML {i} salvo em: {file_name}")
 

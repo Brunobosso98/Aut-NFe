@@ -32,23 +32,13 @@ DOC_TYPES = {
     2: {"name": "CTE", "number_tag": "cCT", "type_tag": "tpCTe"}
 }
 
-# Inicializa o banco de dados
-try:
-    db = DatabaseManager()
-    print("✅ Banco de dados inicializado com sucesso")
-except Exception as e:
-    print(f"❌ Erro ao inicializar banco de dados: {e}")
-
 class XMLProcessorGUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.db = db  # Assign the module-level db to self.db
+        self.db = DatabaseManager()
+        self.db.limpar_registros_antigos(90)
         self.xml_base_dir = DEFAULT_XML_BASE_DIR
         self.initUI()
-        self.log_message("🔄 Inicializando interface do processador de XMLs")
-        registros_removidos = self.db.limpar_registros_antigos(90)
-        self.log_message(f"🧹 Limpeza de registros antigos: {registros_removidos} registros removidos")
-        self.log_message(f"📁 Diretório base para XMLs: {self.xml_base_dir}")
 
     def initUI(self):
         self.setWindowTitle('Processador de XMLs SIEG')
@@ -63,7 +53,7 @@ class XMLProcessorGUI(QMainWindow):
         cnpj_label = QLabel('CNPJs (um por linha):')
         layout.addWidget(cnpj_label)
         self.cnpj_input = QTextEdit()
-        self.cnpj_input.setPlaceholderText('Digite os CNPJs aqui, um por linha.')
+        self.cnpj_input.setPlaceholderText('Digite os CNPJs aqui, um por linha')
         layout.addWidget(self.cnpj_input)
 
         # Botão para carregar CNPJs do Excel
@@ -104,14 +94,14 @@ class XMLProcessorGUI(QMainWindow):
         doc_type_layout = QHBoxLayout(doc_type_widget)
 
         # Checkboxes para tipos de documento
-        self.nfe_checkbox = QPushButton('NFe')
-        self.nfe_checkbox.setCheckable(True)
-        self.nfe_checkbox.setChecked(True)
+        self.nfse_checkbox = QPushButton('NFSe')
+        self.nfse_checkbox.setCheckable(True)
+        self.nfse_checkbox.setChecked(True)
         self.cte_checkbox = QPushButton('CTE')
         self.cte_checkbox.setCheckable(True)
         self.cte_checkbox.setChecked(True)
 
-        doc_type_layout.addWidget(self.nfe_checkbox)
+        doc_type_layout.addWidget(self.nfse_checkbox)
         doc_type_layout.addWidget(self.cte_checkbox)
         layout.addWidget(doc_type_widget)
 
@@ -220,8 +210,8 @@ class XMLProcessorGUI(QMainWindow):
             data_str = current_date.strftime("%Y-%m-%d")
             
             # Processar os tipos de documento selecionados
-            if self.nfe_checkbox.isChecked():
-                self.process_xml_type(cnpj, data_str, 1)  # NFe
+            if self.nfse_checkbox.isChecked():
+                self.process_xml_type(cnpj, data_str, 1)  # NFSe
             if self.cte_checkbox.isChecked():
                 self.process_xml_type(cnpj, data_str, 2)  # CTE
 
@@ -248,32 +238,19 @@ class XMLProcessorGUI(QMainWindow):
                         novos_arquivos = 0
                         for i, xml_base64 in enumerate(data["xmls"], 1):
                             xml_hash = hash(xml_base64)
-                            self.log_message(f"🔍 Verificando XML {i} no banco de dados...")
                             if self.db.verificar_xml_existente(xml_hash):
-                                self.log_message(f"⚠️ XML {i} já foi baixado anteriormente (hash encontrado). Pulando...")
+                                self.log_message(f"⚠️ XML {i} já foi baixado anteriormente. Pulando...")
                                 continue
 
                             xml_content = base64.b64decode(xml_base64).decode("utf-8")
                             dados_xml = self.extrair_dados_xml(xml_content, xml_type)
 
                             if dados_xml:
-                                # Verificar se a nota já existe no banco de dados pelo CNPJ e número da nota
-                                numero_nota = dados_xml["numero_nota"]
-                                self.log_message(f"🔍 Verificando nota {numero_nota or 'sem número'} para CNPJ {cnpj}...")
-                                if numero_nota and self.db.verificar_nota_existente(cnpj, numero_nota):
-                                    self.log_message(f"⚠️ XML {i} com número {numero_nota} já foi baixado anteriormente para o CNPJ {cnpj}. Pulando...")
-                                    continue
-                                else:
-                                    self.log_message(f"✅ Nota {numero_nota or 'sem número'} para CNPJ {cnpj} não encontrada no banco. Processando...")
-                                    
                                 file_name = self.salvar_xml(xml_content, dados_xml, i, xml_type)
                                 if file_name:
-                                    self.log_message(f"🔄 Registrando XML {i} no banco de dados...")
-                                    if self.db.registrar_xml(xml_hash, cnpj, dados_xml["numero_nota"]):
+                                    if self.db.registrar_xml(xml_hash, cnpj):
                                         novos_arquivos += 1
-                                        self.log_message(f"✅ XML {i} salvo em: {file_name} e registrado no banco com sucesso")
-                                    else:
-                                        self.log_message(f"⚠️ XML {i} salvo em arquivo, mas houve um problema ao registrar no banco de dados")
+                                        self.log_message(f"✅ XML {i} salvo em: {file_name}")
 
                         if len(data["xmls"]) == 50:
                             skip += 50
