@@ -18,7 +18,6 @@ URL = f"https://api.sieg.com/BaixarXmlsV2?api_key=7dJmT%2f0uVPbX8mEdBrZSdw%3d%3d
 DOC_TYPES = {
     1: {  # NFSe
         "base_dir": rf"\\192.168.1.240\Fiscal\Nota fiscal Eletronica\SIEG\NFE",
-        "second_dir": rf"\\192.168.1.240\Fiscal\Nota fiscal Eletronica\SIEG\NFE_BACKUP",
         "namespace": "http://www.portalfiscal.inf.br/nfe",
         "numero_tag": "nNF",
         "tipo_tag": "tpNF",
@@ -26,7 +25,6 @@ DOC_TYPES = {
     },
     2: {  # CTe
         "base_dir": rf"\\192.168.1.240\Fiscal\Nota fiscal Eletronica\SIEG\CTE",
-        "second_dir": rf"\\192.168.1.240\Fiscal\Nota fiscal Eletronica\SIEG\CTE_BACKUP",
         "namespace": "http://www.portalfiscal.inf.br/cte",
         "numero_tag": "cCT",
         "tipo_tag": "tpCTe",
@@ -51,9 +49,9 @@ def fazer_requisicao_api(cnpj, data_str, xml_type=1, skip=0, max_retries=5, retr
         "XmlType": xml_type,  # 1 = NFe, 2 = CTe
         "Take": 50,  # Máximo 50 XMLs por requisição
         "Skip": skip,
-        "DataEmissaoInicio": "2025-01-06",
-        "DataEmissaoFim": "2025-01-06",
-        "CnpjEmit": "05574628000114",
+        "DataEmissaoInicio": data_str,
+        "DataEmissaoFim": data_str,
+        "CnpjEmit": cnpj,
         "Downloadevent": False
     }
     
@@ -145,20 +143,11 @@ def salvar_xml(xml_content, dados_xml, i):
         dir_path = os.path.join(doc_config["base_dir"], dados_xml["tipo_nota"], dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
         os.makedirs(dir_path, exist_ok=True)
 
-        # Prepara o caminho para o diretório de backup
-        backup_dir_path = os.path.join(doc_config["second_dir"], dados_xml["tipo_nota"], dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
-        os.makedirs(backup_dir_path, exist_ok=True)
-
         numero_nota = dados_xml["numero_nota"] or f"{i}"
         file_name = os.path.join(dir_path, f"{numero_nota}.xml")
-        backup_file_name = os.path.join(backup_dir_path, f"{numero_nota}.xml")
         
         # Salva no diretório principal
         with open(file_name, "w", encoding="utf-8") as file:
-            file.write(xml_content)
-        
-        # Salva no diretório de backup
-        with open(backup_file_name, "w", encoding="utf-8") as file:
             file.write(xml_content)
         
         return file_name
