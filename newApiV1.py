@@ -26,7 +26,7 @@ DOC_TYPES = {
     2: {  # CTe
         "base_dir": rf"\\192.168.1.240\Fiscal\Nota fiscal Eletronica\SIEG\CTE",
         "namespace": "http://www.portalfiscal.inf.br/cte",
-        "numero_tag": "cCT",
+        "numero_tag": "nCT",
         "tipo_tag": "tpCTe",
         "tipo_map": {"0": "entrada", "1": "saida"}
     }
@@ -139,12 +139,33 @@ def salvar_xml(xml_content, dados_xml, i):
         doc_config = DOC_TYPES[dados_xml["xml_type"]]
         mes_nome = MESES.get(dados_xml["mes"], dados_xml["mes"])
         
-        # Prepara o caminho para o diretório principal
-        dir_path = os.path.join(doc_config["base_dir"], dados_xml["tipo_nota"], dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
+        # Define o caminho base dependendo do tipo de nota
+        if dados_xml["tipo_nota"] == "entrada":
+            # Para notas de entrada, salva direto na pasta do mês
+            dir_path = os.path.join(doc_config["base_dir"], dados_xml["tipo_nota"], 
+                                  dados_xml["ano"], mes_nome)
+        else:
+            # Para notas de saída, mantém a estrutura original com pasta do CNPJ
+            dir_path = os.path.join(doc_config["base_dir"], dados_xml["tipo_nota"], 
+                                  dados_xml["ano"], mes_nome, dados_xml["cnpj_emit"])
+        
         os.makedirs(dir_path, exist_ok=True)
-
+        
         numero_nota = dados_xml["numero_nota"] or f"{i}"
-        file_name = os.path.join(dir_path, f"{numero_nota}.xml")
+        
+        # Para notas de entrada, verifica se já existe arquivo com mesmo número
+        if dados_xml["tipo_nota"] == "entrada":
+            base_name = f"{numero_nota}.xml"
+            file_name = os.path.join(dir_path, base_name)
+            counter = 1
+            
+            # Enquanto existir um arquivo com o mesmo nome, adiciona um contador
+            while os.path.exists(file_name):
+                base_name = f"{numero_nota}_{counter}.xml"
+                file_name = os.path.join(dir_path, base_name)
+                counter += 1
+        else:
+            file_name = os.path.join(dir_path, f"{numero_nota}.xml")
         
         # Salva no diretório principal
         with open(file_name, "w", encoding="utf-8") as file:
